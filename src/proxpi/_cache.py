@@ -307,6 +307,22 @@ class _Locks:
         return self._locks[k]
 
 
+def _parse_basic_auth(url: str) -> tuple[str, str]:
+    """Parse HTTP Basic username and password from URL.
+
+    Args:
+        url: URL to process
+
+    Returns:
+        Tuple containing the username and password
+            (or containing empty strings if the URL has no username and/or password)
+    """
+    parsed = urllib.parse.urlsplit(url)
+    username = parsed.username if parsed.username else ""
+    password = parsed.password if parsed.password else ""
+    return username, password
+
+
 def _mask_password(url: str) -> str:
     """Mask HTTP basic auth password in URL.
 
@@ -430,6 +446,7 @@ class _IndexCache:
         if self._index_t is None or _now() > self._index_t + self.ttl:
             url = urllib.parse.urljoin(self.index_url, package_name)
             logger.debug(f"Refreshing '{package_name}'")
+            self.session.auth = _parse_basic_auth(url)
             response = self.session.get(url, headers=self._headers)
         if not response or not response.ok:
             logger.debug(f"List-files response: {response}")
