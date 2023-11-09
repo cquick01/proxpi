@@ -307,7 +307,7 @@ class _Locks:
         return self._locks[k]
 
 
-def _parse_basic_auth(url: str) -> tuple[str, str]:
+def _parse_basic_auth(url: str) -> t.Tuple[str, str]:
     """Parse HTTP Basic username and password from URL.
 
     Args:
