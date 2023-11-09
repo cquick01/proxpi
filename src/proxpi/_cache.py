@@ -446,7 +446,11 @@ class _IndexCache:
         if self._index_t is None or _now() > self._index_t + self.ttl:
             url = urllib.parse.urljoin(self.index_url, package_name)
             logger.debug(f"Refreshing '{package_name}'")
-            self.session.auth = _parse_basic_auth(url)
+            # update session auth if provided in url
+            username, password = _parse_basic_auth(url)
+            if username:
+                # password either supplied or empty str
+                self.session.auth = (username, password)
             response = self.session.get(url, headers=self._headers)
         if not response or not response.ok:
             logger.debug(f"List-files response: {response}")
