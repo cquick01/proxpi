@@ -327,6 +327,22 @@ class Session(requests.Session):
         return super().send(request, **kwargs)
 
 
+def _parse_basic_auth(url: str) -> t.Tuple[str, str]:
+    """Parse HTTP Basic username and password from URL.
+
+    Args:
+        url: URL to process
+
+    Returns:
+        Tuple containing the username and password
+            (or containing empty strings if the URL has no username and/or password)
+    """
+    parsed = urllib.parse.urlsplit(url)
+    username = parsed.username if parsed.username else ""
+    password = parsed.password if parsed.password else ""
+    return username, password
+
+
 def _mask_password(url: str) -> str:
     """Mask HTTP basic auth password in URL.
 
@@ -379,9 +395,23 @@ class _IndexCache:
         self._index = {}
         self._packages = {}
         self._index_url_masked = _mask_password(index_url)
+        username, password = _parse_basic_auth(index_url)
+        if username:
+            # password either supplied or empty str
+            self._auth = (username, password)
+        else:
+            self._auth = None
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self._index_url_masked!r}, {self.ttl!r})"
+
+    def get(self, url, **kwargs):
+        """Wrapper for self.session.get to configure auth if provided."""
+        if self._auth:
+            response = self.session.get(url, auth=self._auth, **kwargs)
+        else:
+            response = self.session.get(url, **kwargs)
+        return response
 
     def _list_packages(self):
         """List projects using or updating cache."""
@@ -389,7 +419,7 @@ class _IndexCache:
             return
 
         logger.info(f"Listing packages in index '{self._index_url_masked}'")
-        response = self.session.get(self.index_url, headers=self._headers)
+        response = self.get(self.index_url, headers=self._headers)
         response.raise_for_status()
         self._index_t = _now()
 
@@ -450,7 +480,7 @@ class _IndexCache:
         if self._index_t is None or _now() > self._index_t + self.ttl:
             url = urllib.parse.urljoin(self.index_url, package_name)
             logger.debug(f"Refreshing '{package_name}'")
-            response = self.session.get(url, headers=self._headers)
+            response = self.get(url, headers=self._headers)
         if not response or not response.ok:
             logger.debug(f"List-files response: {response}")
             package_name_normalised = _name_normalise_re.sub("-", package_name).lower()
@@ -458,7 +488,7 @@ class _IndexCache:
                 raise NotFound(package_name)
             package_url = self._index[package_name]
             url = urllib.parse.urljoin(self.index_url, package_url)
-            response = self.session.get(url, headers=self._headers)
+            response = self.get(url, headers=self._headers)
             response.raise_for_status()
 
         package = Package(package_name, files={}, refreshed=_now())
