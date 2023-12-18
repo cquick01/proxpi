@@ -711,7 +711,11 @@ class _FileCache:
 
         url_masked = _mask_password(url)
         logger.debug(f"Downloading '{url_masked}' to '{path}'")
-        response = self.session.get(url, stream=True)
+        auth = _parse_basic_auth(url)
+        if auth[0]:  # username
+            response = self.session.get(url, stream=True, auth=auth)
+        else:
+            response = self.session.get(url, stream=True)
         if response.status_code // 100 >= 4:
             logger.error(
                 f"Failed to download '{url_masked}': "
